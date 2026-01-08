@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+
+.active {
+  text-decoration: underline;
+  text-decoration-color: black; 
+  text-underline-offset: 2.8px; 
+  color: rgb(0, 0, 0);
+} 
+
+
+.slick-slider {
+  overflow: hidden;
+}
+
+
+
+.slick-slide {
+  transition: all 0.3s ease-in-out;
+}
