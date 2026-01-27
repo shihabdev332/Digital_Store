@@ -3,7 +3,7 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
-import locationRouter from "./routes/locationRoute.js";
+
 // Configurations
 import dbConnect from "./config/mongodb.js";
 import connectCloudinary from "./config/cloudinary.js";
@@ -12,7 +12,8 @@ import connectCloudinary from "./config/cloudinary.js";
 import userRouter from "./routes/userRouters.js";
 import productRoute from "./routes/productsRoute.js";
 import orderRoute from "./routes/adminOrder.js";
-// ✅ REMOVED: aiRouter যেহেতু তুমি Gemini রিমুভ করেছো
+import locationRouter from "./routes/locationRoute.js";
+import aiRouter from "./routes/aiRoute.js"; // ✅ Re-added AI Router
 
 const app = express();
 
@@ -21,8 +22,12 @@ dbConnect();
 connectCloudinary();
 
 // Middlewares
-// English Comment: Configure CORS for security
-app.use(cors());
+// English Comment: Configure CORS to allow requests from any origin (helpful for Vercel)
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
 
 // Body Parsers with increased limits
 app.use(express.json({ limit: "10mb" }));
@@ -38,7 +43,7 @@ app.use("/api/user", userRouter);
 app.use("/api/product", productRoute);
 app.use("/api/order", orderRoute);
 app.use("/api/location", locationRouter);
-// ✅ REMOVED: /api/ai endpoint
+app.use("/api/ai", aiRouter); // ✅ Re-added AI endpoint
 
 // Standard 404 Handler
 app.use((req, res) => {
