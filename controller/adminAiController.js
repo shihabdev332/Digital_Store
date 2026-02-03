@@ -6,8 +6,8 @@ const groq = new Groq({
 });
 
 /**
- * ✅ Fixed & Accurate AI Controller for Live Admin Panel
- * Generates technical data with improved currency and accuracy logic.
+ * ✅ Updated AI Controller for Admin Panel
+ * Focuses strictly on USD ($) and high-accuracy technical data.
  */
 export const generatePremiumProductData = async (req, res) => {
   try {
@@ -17,20 +17,21 @@ export const generatePremiumProductData = async (req, res) => {
       return res.status(400).json({ success: false, message: "Product name is required" });
     }
 
-    // High Precision System Instruction
+    // Direct USD Instruction
     const systemInstruction = `
       You are a precise Product Data Specialist for 'Digital Shop'. 
       Your task is to provide real-world technical specifications.
 
-      ACCURACY RULES:
-      1. Use actual market data for ${productName}. If the exact model is unknown, use the closest specs for its series.
-      2. PRICING: Provide the global market price in USD ONLY. Do not use BDT.
-      3. Do not invent fake features. If a spec is unknown, leave it as "Standard".
+      STRICT RULES:
+      1. PRICING: Provide the current global market price in USD ($) ONLY. 
+      2. DATA SOURCE: Use actual manufacturer data for ${productName}.
+      3. LANGUAGE: Always respond in English.
+      4. RELIABILITY: If exact specs are unknown, provide accurate series-level data. Never invent fake technical numbers.
       
       OUTPUT FORMAT:
-      - Description: Concise, professional, features-driven (3 sentences).
-      - Specifications: Accurate Processor, Display, RAM, etc.
-      - Response: Valid JSON object only.
+      - Description: Professional, feature-rich sentences.
+      - Specifications: Include real-world Processor, Display, RAM, and Battery details.
+      - Response: Must be a valid JSON object.
     `;
 
     const userPrompt = `
@@ -40,20 +41,21 @@ export const generatePremiumProductData = async (req, res) => {
       
       Generate data in this exact JSON structure:
       {
-        "description": "Professional description here",
+        "description": "Professional marketing description",
         "specifications": {
-          "Model": "Exact model name",
-          "KeyFeatures": "3 main highlights",
+          "Model": "Full model name",
+          "KeyFeatures": "Top 3 highlights",
           "Technical_Specs": {
              "Processor": "",
              "Display": "",
              "Memory": "",
-             "Battery": ""
+             "Battery": "",
+             "Storage": ""
           }
         },
         "tags": ["SEO keywords"],
         "suggestedPrice": 0, 
-        "warranty": "Standard Warranty terms",
+        "warranty": "Standard manufacturer warranty",
         "badge": "New Arrival"
       }
     `;
@@ -65,18 +67,13 @@ export const generatePremiumProductData = async (req, res) => {
       ],
       model: "llama-3.3-70b-versatile",
       response_format: { type: "json_object" },
-      temperature: 0.1, // ✅ Set to 0.1 for maximum factual accuracy
+      temperature: 0.1, // ✅ Keeps the AI factual and prevents random pricing
     });
 
     let aiResponse = JSON.parse(chatCompletion.choices[0]?.message?.content || "{}");
 
-    // English Comment: Standardizing price to USD. 
-    // If AI hallucinates and gives a BDT value (over 1000), we force convert it.
-    let finalPrice = Number(aiResponse.suggestedPrice);
-    if (finalPrice > 1000) {
-      finalPrice = parseFloat((finalPrice / 120).toFixed(2));
-    }
-    aiResponse.suggestedPrice = finalPrice;
+    // English Comment: Ensure price is a clean number and interpreted as USD
+    aiResponse.suggestedPrice = Number(aiResponse.suggestedPrice);
 
     res.status(200).json({
       success: true,
@@ -87,7 +84,7 @@ export const generatePremiumProductData = async (req, res) => {
     console.error("❌ AI Controller Error:", error.message);
     res.status(500).json({
       success: false,
-      message: "Server busy. AI could not verify data.",
+      message: "AI failed to fetch accurate data.",
     });
   }
 };
