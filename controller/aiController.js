@@ -1,11 +1,15 @@
 import Groq from "groq-sdk";
 import productModel from "../model/productModel.js";
 
-// Initialize Groq client
+// Groq Initialize
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+/**
+ * ✅ Ultra-Perfect AI Sales Assistant
+ * Optimized for: Short replies, Strict USD ($), and Accuracy.
+ */
 export const getAiResponse = async (req, res) => {
   try {
     const { message } = req.body;
@@ -14,29 +18,24 @@ export const getAiResponse = async (req, res) => {
       return res.status(400).json({ success: false, message: "Message is required" });
     }
 
-    // Fetch all products with all fields for deep knowledge
-    const allProducts = await productModel.find({});
+    // English Comment: Fetch minimal data to keep the context tight and response fast
+    const allProducts = await productModel.find({}).select("name price category bestseller");
     
-    // Formatting detailed product data for AI knowledge base
+    // Formatting context without long descriptions to prevent AI from being wordy
     const productContext = allProducts.map(p => 
-      `Product: ${p.name} | Price: ${p.price} $ | Category: ${p.category} | Description: ${p.description} | Popular: ${p.bestseller ? 'Yes' : 'No'}`
-    ).join("\n");
+      `${p.name}: ${p.price}$ [Popular: ${p.bestseller}]`
+    ).join(", ");
 
-    // Highly Intelligent System Instruction
     const systemInstruction = `
-      You are the highly intelligent Sales Expert and Support Assistant of 'Digital Shop', owned by Shihab.
-      
-      KNOWLEDGE BASE:
-      ${productContext}
+      You are the Sales Expert for 'Digital Shop'. 
+      KNOWLEDGE: ${productContext}
 
-      RULES & BEHAVIOR:
-      1. Use the KNOWLEDGE BASE to provide specific details about product features and pricing.
-      2. If a user asks for a recommendation, prioritize 'Popular: Yes' products.
-      3. Language Sensitivity: Always respond in the language the user uses (English or Bengali).
-      4. If a product is not in the database, suggest the closest alternative from the list.
-      5. Delivery Info: Fast delivery (2-3 days) in Bangladesh.
-      6. Conversion: If users mention USD ($), remind them prices are in BDT.
-      7. Tone: Helpful, professional, and persuasive.
+      STRICT COMMANDS:
+      1. RESPONSE LENGTH: Max 2 sentences. Be extremely concise.
+      2. CURRENCY: Use USD ($) only. Never mention BDT.
+      3. LANGUAGE: Always reply in the user's language (Bangla or English).
+      4. ACCURACY: If a product isn't in KNOWLEDGE, say "Not in stock" and briefly suggest a similar one.
+      5. NO FLUFF: Don't use "Hello", "How can I help", etc., unless necessary. Get straight to the point.
     `;
 
     const chatCompletion = await groq.chat.completions.create({
@@ -45,8 +44,8 @@ export const getAiResponse = async (req, res) => {
         { role: "user", content: message },
       ],
       model: "llama-3.3-70b-versatile",
-      temperature: 0.6, // Balanced between factual and conversational
-      max_tokens: 800,
+      temperature: 0.2, // ✅ Lower temperature = More factual & less talkative
+      max_tokens: 150,  // ✅ Strict token limit to prevent long essays
     });
 
     const aiReply = chatCompletion.choices[0]?.message?.content || "";
@@ -57,10 +56,10 @@ export const getAiResponse = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Intelligent AI Error:", error.message);
+    console.error("❌ AI Error:", error.message);
     res.status(500).json({ 
       success: false, 
-      message: "AI Assistant is reorganizing its thoughts. Please try again soon." 
+      message: "Assistant is busy. Try again later." 
     });
   }
 };
