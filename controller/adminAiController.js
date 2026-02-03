@@ -6,8 +6,8 @@ const groq = new Groq({
 });
 
 /**
- * ✅ Premium AI Controller for Admin
- * This controller generates professional product data and converts BDT to USD.
+ * ✅ Fixed & Accurate AI Controller for Live Admin Panel
+ * Generates technical data with improved currency and accuracy logic.
  */
 export const generatePremiumProductData = async (req, res) => {
   try {
@@ -17,41 +17,43 @@ export const generatePremiumProductData = async (req, res) => {
       return res.status(400).json({ success: false, message: "Product name is required" });
     }
 
-    // Advanced System Instruction
+    // High Precision System Instruction
     const systemInstruction = `
-      You are an AI Product Catalog Specialist for 'Digital Shop'. 
-      Your goal is to generate professional, technical product information.
-      
-      IMPORTANT PRICING RULE:
-      1. First, determine a realistic market price in BDT (Bangladeshi Taka).
-      2. Then, CONVERT that BDT price into USD ($) by dividing it by 120.
-      3. ONLY return the final USD price in the "suggestedPrice" field.
-      4. Do not include currency symbols in the JSON number field.
+      You are a precise Product Data Specialist for 'Digital Shop'. 
+      Your task is to provide real-world technical specifications.
 
-      INSTRUCTIONS:
-      - Description: 3-4 professional sentences.
-      - Specifications: Include Processor, Display, RAM, Battery, etc.
-      - Tags: 5-8 SEO keywords.
-      - Warranty: Standard electronic warranty.
-      - Response Format: Pure JSON only.
+      ACCURACY RULES:
+      1. Use actual market data for ${productName}. If the exact model is unknown, use the closest specs for its series.
+      2. PRICING: Provide the global market price in USD ONLY. Do not use BDT.
+      3. Do not invent fake features. If a spec is unknown, leave it as "Standard".
+      
+      OUTPUT FORMAT:
+      - Description: Concise, professional, features-driven (3 sentences).
+      - Specifications: Accurate Processor, Display, RAM, etc.
+      - Response: Valid JSON object only.
     `;
 
     const userPrompt = `
       Product: ${productName}
-      Brand: ${brand || "Recognized brand"}
+      Brand: ${brand || "Standard"}
       Category: ${category || "Electronics"}
       
-      Provide data in this JSON structure:
+      Generate data in this exact JSON structure:
       {
-        "description": "",
+        "description": "Professional description here",
         "specifications": {
-          "Model": "",
-          "KeyFeatures": "",
-          "Technical_Specs": {}
+          "Model": "Exact model name",
+          "KeyFeatures": "3 main highlights",
+          "Technical_Specs": {
+             "Processor": "",
+             "Display": "",
+             "Memory": "",
+             "Battery": ""
+          }
         },
-        "tags": [],
+        "tags": ["SEO keywords"],
         "suggestedPrice": 0, 
-        "warranty": "",
+        "warranty": "Standard Warranty terms",
         "badge": "New Arrival"
       }
     `;
@@ -63,17 +65,18 @@ export const generatePremiumProductData = async (req, res) => {
       ],
       model: "llama-3.3-70b-versatile",
       response_format: { type: "json_object" },
-      temperature: 0.4,
+      temperature: 0.1, // ✅ Set to 0.1 for maximum factual accuracy
     });
 
-    // Parse the AI response
     let aiResponse = JSON.parse(chatCompletion.choices[0]?.message?.content || "{}");
 
-    // English Comment: Double-checking the conversion logic in backend for maximum accuracy
-    // If AI provides a huge BDT-like number, we divide it by 120 manually.
-    if (aiResponse.suggestedPrice > 5000) { 
-        aiResponse.suggestedPrice = parseFloat((aiResponse.suggestedPrice / 120).toFixed(2));
+    // English Comment: Standardizing price to USD. 
+    // If AI hallucinates and gives a BDT value (over 1000), we force convert it.
+    let finalPrice = Number(aiResponse.suggestedPrice);
+    if (finalPrice > 1000) {
+      finalPrice = parseFloat((finalPrice / 120).toFixed(2));
     }
+    aiResponse.suggestedPrice = finalPrice;
 
     res.status(200).json({
       success: true,
@@ -81,10 +84,10 @@ export const generatePremiumProductData = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Premium AI Error:", error.message);
+    console.error("❌ AI Controller Error:", error.message);
     res.status(500).json({
       success: false,
-      message: "AI failed to generate data.",
+      message: "Server busy. AI could not verify data.",
     });
   }
 };
