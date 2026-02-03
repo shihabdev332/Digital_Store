@@ -6,55 +6,50 @@ const groq = new Groq({
 });
 
 /**
- * ✅ Updated AI Controller for Admin Panel
- * Focuses strictly on USD ($) and high-accuracy technical data.
+ * ✅ Premium AI Controller
+ * Generates highly accurate descriptions by analyzing both Name and Price.
  */
 export const generatePremiumProductData = async (req, res) => {
   try {
-    const { productName, brand, category } = req.body;
+    // English Comment: Destructuring price from request to guide AI logic
+    const { productName, brand, category, price } = req.body;
 
     if (!productName) {
       return res.status(400).json({ success: false, message: "Product name is required" });
     }
 
-    // Direct USD Instruction
     const systemInstruction = `
-      You are a precise Product Data Specialist for 'Digital Shop'. 
-      Your task is to provide real-world technical specifications.
+      You are a precise Product Catalog Specialist for 'Digital Shop'. 
+      Your task is to generate technical data based on the product name and its price point.
 
       STRICT RULES:
-      1. PRICING: Provide the current global market price in USD ($) ONLY. 
-      2. DATA SOURCE: Use actual manufacturer data for ${productName}.
-      3. LANGUAGE: Always respond in English.
-      4. RELIABILITY: If exact specs are unknown, provide accurate series-level data. Never invent fake technical numbers.
-      
-      OUTPUT FORMAT:
-      - Description: Professional, feature-rich sentences.
-      - Specifications: Include real-world Processor, Display, RAM, and Battery details.
-      - Response: Must be a valid JSON object.
+      1. PRICE CONTEXT: The product price is $${price || "unknown"}. Adjust the description tone and specs to match this price. 
+      2. ACCURACY: If ${productName} is a premium flagship (e.g., iPhone Pro Max), use high-end terminology. 
+      3. LOGIC: For future models, use "Expected" or "Next-gen" instead of outdated 2024 chip names.
+      4. NO BDT: Use USD ($) only. Return pure JSON.
     `;
 
     const userPrompt = `
       Product: ${productName}
+      Price: $${price || "Market Standard"}
       Brand: ${brand || "Standard"}
       Category: ${category || "Electronics"}
       
       Generate data in this exact JSON structure:
       {
-        "description": "Professional marketing description",
+        "description": "Write a 3-sentence professional description that justifies the $${price} price point.",
         "specifications": {
-          "Model": "Full model name",
-          "KeyFeatures": "Top 3 highlights",
+          "Model": "${productName}",
+          "KeyFeatures": "3 high-end highlights",
           "Technical_Specs": {
-             "Processor": "",
+             "Processor": "Most likely chip for this price",
              "Display": "",
              "Memory": "",
-             "Battery": "",
-             "Storage": ""
+             "Battery": ""
           }
         },
         "tags": ["SEO keywords"],
-        "suggestedPrice": 0, 
+        "suggestedPrice": ${price || 0}, 
         "warranty": "Standard manufacturer warranty",
         "badge": "New Arrival"
       }
@@ -67,13 +62,16 @@ export const generatePremiumProductData = async (req, res) => {
       ],
       model: "llama-3.3-70b-versatile",
       response_format: { type: "json_object" },
-      temperature: 0.1, // ✅ Keeps the AI factual and prevents random pricing
+      temperature: 0.1, // Keeps responses factual
     });
 
     let aiResponse = JSON.parse(chatCompletion.choices[0]?.message?.content || "{}");
 
-    // English Comment: Ensure price is a clean number and interpreted as USD
-    aiResponse.suggestedPrice = Number(aiResponse.suggestedPrice);
+    // English Comment: If user didn't provide price, we keep AI's suggested price.
+    // Otherwise, we prioritize the user's input price.
+    if (price) {
+      aiResponse.suggestedPrice = Number(price);
+    }
 
     res.status(200).json({
       success: true,
@@ -84,7 +82,7 @@ export const generatePremiumProductData = async (req, res) => {
     console.error("❌ AI Controller Error:", error.message);
     res.status(500).json({
       success: false,
-      message: "AI failed to fetch accurate data.",
+      message: "AI failed to generate contextual data.",
     });
   }
 };
