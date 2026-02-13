@@ -1,59 +1,88 @@
 import Groq from "groq-sdk";
 
-// Groq Initialize
+// Initialize Groq
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-/**
- * ✅ Premium AI Controller
- * Generates highly accurate descriptions by analyzing both Name and Price.
- */
 export const generatePremiumProductData = async (req, res) => {
   try {
-    // English Comment: Destructuring price from request to guide AI logic
     const { productName, brand, category, price } = req.body;
 
-    if (!productName) {
-      return res.status(400).json({ success: false, message: "Product name is required" });
+    if (!productName || productName.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Product name is required",
+      });
+    }
+
+    const numericPrice = price ? Number(price) : null;
+
+    // 🔥 Price Tier Classification (Prevents AI randomness)
+    let priceTier = "mid-range";
+    if (numericPrice) {
+      if (numericPrice < 200) priceTier = "budget";
+      else if (numericPrice < 600) priceTier = "mid-range";
+      else if (numericPrice < 1000) priceTier = "premium";
+      else priceTier = "ultra-flagship";
     }
 
     const systemInstruction = `
-      You are a precise Product Catalog Specialist for 'Digital Shop'. 
-      Your task is to generate technical data based on the product name and its price point.
+You are a senior Product Catalog Architect for "Digital Shop".
 
-      STRICT RULES:
-      1. PRICE CONTEXT: The product price is $${price || "unknown"}. Adjust the description tone and specs to match this price. 
-      2. ACCURACY: If ${productName} is a premium flagship (e.g., iPhone Pro Max), use high-end terminology. 
-      3. LOGIC: For future models, use "Expected" or "Next-gen" instead of outdated 2024 chip names.
-      4. NO BDT: Use USD ($) only. Return pure JSON.
-    `;
+Your job is to generate realistic, market-aligned technical specifications.
+
+CRITICAL RULES:
+1. The product price is $${numericPrice || "market-based"}.
+2. Price Tier: ${priceTier}.
+3. Specs MUST logically match this price tier.
+4. Never invent impossible specs (no 64GB RAM in budget phones).
+5. Use realistic chipset generations (if future model, use "Next-gen flagship processor").
+6. Use USD ($) only.
+7. Output ONLY valid JSON. No explanation text.
+8. Keep description exactly 3 sentences.
+9. Technical specs must be believable for ${priceTier} level.
+`;
 
     const userPrompt = `
-      Product: ${productName}
-      Price: $${price || "Market Standard"}
-      Brand: ${brand || "Standard"}
-      Category: ${category || "Electronics"}
-      
-      Generate data in this exact JSON structure:
-      {
-        "description": "Write a 3-sentence professional description that justifies the $${price} price point.",
-        "specifications": {
-          "Model": "${productName}",
-          "KeyFeatures": "3 high-end highlights",
-          "Technical_Specs": {
-             "Processor": "Most likely chip for this price",
-             "Display": "",
-             "Memory": "",
-             "Battery": ""
-          }
-        },
-        "tags": ["SEO keywords"],
-        "suggestedPrice": ${price || 0}, 
-        "warranty": "Standard manufacturer warranty",
-        "badge": "New Arrival"
-      }
-    `;
+Product Name: ${productName}
+Brand: ${brand || "Generic"}
+Category: ${category || "Electronics"}
+Price: $${numericPrice || "Market Standard"}
+
+Return EXACTLY in this JSON structure:
+
+{
+  "description": "3-sentence premium catalog description aligned with $${numericPrice || "market"} price.",
+  "specifications": {
+    "Model": "${productName}",
+    "Brand": "${brand || "Generic"}",
+    "Category": "${category || "Electronics"}",
+    "PriceTier": "${priceTier}",
+    "KeyFeatures": [
+      "Feature 1",
+      "Feature 2",
+      "Feature 3"
+    ],
+    "Technical_Specs": {
+      "Processor": "",
+      "Display": "",
+      "Memory": "",
+      "Storage": "",
+      "Battery": "",
+      "Build": ""
+    }
+  },
+  "seoMeta": {
+    "title": "SEO optimized title under 60 characters",
+    "description": "SEO meta description under 155 characters"
+  },
+  "tags": ["5-8 SEO tags"],
+  "suggestedPrice": ${numericPrice || 0},
+  "warranty": "Standard 1 Year Manufacturer Warranty",
+  "badge": "New Arrival"
+}
+`;
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
@@ -62,27 +91,46 @@ export const generatePremiumProductData = async (req, res) => {
       ],
       model: "llama-3.3-70b-versatile",
       response_format: { type: "json_object" },
-      temperature: 0.1, // Keeps responses factual
+      temperature: 0.15, // Slight creativity but controlled
+      max_tokens: 800,
     });
 
-    let aiResponse = JSON.parse(chatCompletion.choices[0]?.message?.content || "{}");
+    let aiRaw = chatCompletion?.choices?.[0]?.message?.content || "{}";
 
-    // English Comment: If user didn't provide price, we keep AI's suggested price.
-    // Otherwise, we prioritize the user's input price.
-    if (price) {
-      aiResponse.suggestedPrice = Number(price);
+    let aiResponse;
+
+    try {
+      aiResponse = JSON.parse(aiRaw);
+    } catch (parseError) {
+      console.error("⚠ JSON Parse Error:", parseError.message);
+      return res.status(500).json({
+        success: false,
+        message: "AI returned invalid JSON structure.",
+      });
     }
 
-    res.status(200).json({
+    // 🔒 Final Safeguard: Ensure price consistency
+    if (numericPrice) {
+      aiResponse.suggestedPrice = numericPrice;
+    }
+
+    // Optional: Auto badge logic
+    if (priceTier === "ultra-flagship") {
+      aiResponse.badge = "Flagship";
+    } else if (priceTier === "premium") {
+      aiResponse.badge = "Premium Choice";
+    }
+
+    return res.status(200).json({
       success: true,
       data: aiResponse,
     });
 
   } catch (error) {
     console.error("❌ AI Controller Error:", error.message);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "AI failed to generate contextual data.",
+      message: "AI failed to generate accurate product data.",
     });
   }
 };
