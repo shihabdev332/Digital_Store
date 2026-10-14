@@ -89,7 +89,7 @@ Return EXACTLY in this JSON structure:
         { role: "system", content: systemInstruction },
         { role: "user", content: userPrompt },
       ],
-      model: "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
       response_format: { type: "json_object" },
       temperature: 0.15, // Slight creativity but controlled
       max_tokens: 800,
