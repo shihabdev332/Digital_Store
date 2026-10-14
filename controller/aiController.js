@@ -9,6 +9,15 @@ const groq = new Groq({
 // Simple in-memory session store (Production হলে Redis ব্যবহার করবে)
 const conversationMemory = new Map();
 
+const stopWords = new Set([
+  "a", "an", "and", "any", "are", "available", "buy", "can", "cost", "do", "for", "have",
+  "here", "how", "i", "in", "is", "it", "me", "of", "phone", "phones", "price", "product", "show",
+  "spec", "specs", "specification", "specifications", "tell", "the", "there", "this", "to", "what", "which", "with", "you", "your",
+  "দাম", "আছে", "কোন", "কি", "কী", "দেখান", "দেখাও", "কেমন", "কত", "পণ্য", "প্রোডাক্ট", "মোবাইল", "ফোন",
+]);
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 export const getAiResponse = async (req, res) => {
   try {
     const { message, sessionId } = req.body;
@@ -69,45 +78,57 @@ User message: "${message}"
     // -----------------------------
     // 2️⃣ Smart Product Query
     // -----------------------------
-    let query = {};
+    const searchableFields = ["name", "brand", "category", "modelNumber", "tags"];
+    const getSearchTerms = (text) => [...new Set(
+      (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [])
+    )].filter((term) => term.length > 1 && !stopWords.has(term));
+    const searchText = typeof detectedProduct === "string" && detectedProduct.trim()
+      ? detectedProduct
+      : message;
+    const searchTerms = getSearchTerms(searchText);
+    const findProducts = async (terms) => {
+      if (!terms.length) return [];
+      const termConditions = terms.map((term) => ({
+        $or: searchableFields.map((field) => ({
+          [field]: { $regex: escapeRegex(term), $options: "i" },
+        })),
+      }));
+      return productModel
+        .find({ $and: termConditions })
+        .select("name brand price discountedPercentage category description specifications stock isAvailable modelNumber tags")
+        .limit(5);
+    };
 
-    if (detectedProduct) {
-      query = {
-        $or: [
-          { name: { $regex: detectedProduct, $options: "i" } },
-          { category: { $regex: detectedProduct, $options: "i" } },
-        ],
-      };
-    } else {
-      query = {
-        $or: [
-          { name: { $regex: message, $options: "i" } },
-          { category: { $regex: message, $options: "i" } },
-        ],
-      };
+    let matchedProducts = await findProducts(searchTerms);
+    // If the classifier returned an incomplete product name, retry using the user's words.
+    if (!matchedProducts.length && searchText !== message) {
+      matchedProducts = await findProducts(getSearchTerms(message));
     }
 
-    let matchedProducts = await productModel
-      .find(query)
-      .select("name price category bestseller")
-      .limit(5);
-
-    // Bestseller fallback
-    if (matchedProducts.length === 0) {
+    // For broad recommendation questions, include featured items or recent products.
+    if (matchedProducts.length === 0 && detectedIntent === "recommendation") {
       matchedProducts = await productModel
-        .find({ bestseller: true })
-        .select("name price category bestseller")
-        .limit(3);
+        .find({ isAvailable: true, stock: { $gt: 0 } })
+        .sort({ isFeatured: -1, createdAt: -1 })
+        .select("name brand price discountedPercentage category description specifications stock isAvailable modelNumber tags")
+        .limit(5);
     }
 
-    const productContext = matchedProducts
-      .map(
-        (p) =>
-          `${p.name} - $${p.price} (${p.category})${
-            p.bestseller ? " [Popular]" : ""
-          }`
-      )
-      .join(" | ");
+    const productContext = matchedProducts.length
+      ? matchedProducts.map((product) => JSON.stringify({
+          name: product.name,
+          brand: product.brand,
+          category: product.category,
+          price: product.price,
+          discountedPercentage: product.discountedPercentage,
+          stock: product.stock,
+          inStock: product.isAvailable && product.stock > 0,
+          description: product.description,
+          modelNumber: product.modelNumber,
+          specifications: product.specifications,
+          tags: product.tags,
+        })).join("\n")
+      : "No matching products were found in the store catalog.";
 
     // -----------------------------
     // 3️⃣ Conversational Memory (last 6 messages)
@@ -126,7 +147,9 @@ RULES:
 - Maximum 2 short sentences.
 - Be natural, friendly and precise.
 - Use USD ($) only.
-- If product not available say "Not in stock" and suggest alternative.
+- Answer product questions only using the AVAILABLE PRODUCTS data above; never invent product names, prices, specs, or stock.
+- If no matching product data is provided, say you could not find that item in the catalog and ask what product they mean.
+- Treat a product as in stock only when its inStock field is true.
 - Match user language (Bangla or English).
 `;
 
@@ -140,7 +163,7 @@ RULES:
       messages,
       model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
       temperature: 0.3,
-      max_tokens: 100,
+      max_tokens: 220,
       top_p: 0.9,
     });
 
