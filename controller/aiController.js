@@ -48,7 +48,7 @@ User message: "${message}"
 
     const intentResult = await groq.chat.completions.create({
       messages: [{ role: "user", content: intentPrompt }],
-      model: "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
       temperature: 0,
       max_tokens: 50,
     });
@@ -138,7 +138,7 @@ RULES:
 
     const chatCompletion = await groq.chat.completions.create({
       messages,
-      model: "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
       temperature: 0.3,
       max_tokens: 100,
       top_p: 0.9,
